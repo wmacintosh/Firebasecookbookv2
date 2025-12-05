@@ -37,11 +37,10 @@ export const TARTAN_PATTERN_STYLE = {
 };
 
 export const FAMILY_MEMBERS: Record<string, string> = {
-  "Nan": "#d97706", // Amber
-  "Wade": "#0369a1", // Sky
-  "Shirley": "#e11d48", // Rose
-  "Mom": "#059669", // Emerald
-  "Grandma": "#7c2d12", // Brown
+  "Nan": "#d97706",      // Amber
+  "Wade": "#0369a1",     // Sky Blue
+  "Adrienne": "#e11d48", // Rose Red
+  "Donetta": "#059669",  // Emerald Green
 };
 
 export const getAvatarColor = (name: string): string => {
@@ -96,7 +95,7 @@ export const SEED_RECIPES: Recipe[] = [
       "Pour broth over everything.",
       "Roast for 3-4 hours until tender."
     ],
-    addedBy: "Shirley",
+    addedBy: "Adrienne",
     cookTime: "4h",
     temp: "325°F",
     timestamp: Date.now() - 10000,
@@ -118,7 +117,7 @@ export const SEED_RECIPES: Recipe[] = [
       "Sprinkle over apples.",
       "Bake at 350°F for 45 minutes."
     ],
-    addedBy: "Grandma",
+    addedBy: "Donetta",
     cookTime: "45m",
     temp: "350°F",
     timestamp: Date.now() - 20000,

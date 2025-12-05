@@ -4,6 +4,8 @@ import {
   collection, 
   getDocs, 
   addDoc, 
+  doc,
+  updateDoc,
   Firestore 
 } from "firebase/firestore";
 import { Recipe } from "../types";
@@ -126,6 +128,34 @@ export const recipeService = {
        console.error("Error adding recipe to Firestore, falling back to demo mode:", error);
        isDemoMode = true;
        return this.addRecipe(recipe);
+    }
+  },
+
+  async updateRecipe(recipe: Recipe): Promise<void> {
+    const updatedData = {
+      ...recipe,
+      userColor: getAvatarColor(recipe.addedBy)
+    };
+
+    if (isDemoMode || !db) {
+      const index = demoStore.findIndex(r => r.id === recipe.id);
+      if (index !== -1) {
+        demoStore[index] = updatedData;
+      }
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return;
+    }
+
+    try {
+      if (!recipe.id) throw new Error("Recipe ID missing for update");
+      const recipeRef = doc(db, "recipes", recipe.id);
+      // Remove id from the data being sent to firestore (keep metadata clean)
+      const { id, ...data } = updatedData;
+      await updateDoc(recipeRef, data);
+    } catch (error) {
+      console.error("Error updating recipe in Firestore, falling back to demo mode:", error);
+      isDemoMode = true;
+      return this.updateRecipe(recipe);
     }
   },
 

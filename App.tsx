@@ -20,11 +20,11 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // New Recipe State
-  const [newRecipe, setNewRecipe] = useState<Partial<Recipe>>({
+  // Recipe Form State
+  const [recipeForm, setRecipeForm] = useState<Partial<Recipe>>({
     title: '',
     category: Category.MAIN_DISHES,
     ingredients: [''],
@@ -88,34 +88,61 @@ const App: React.FC = () => {
   }, [recipes, selectedCategory, searchQuery, favorites]);
 
   // Handlers
+  const openAddModal = () => {
+    setRecipeForm({
+      title: '',
+      category: Category.MAIN_DISHES,
+      ingredients: [''],
+      instructions: [''],
+      addedBy: 'Nan'
+    });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (recipe: Recipe) => {
+    setRecipeForm({ ...recipe });
+    setIsModalOpen(true);
+    // Optionally close detail if you want, but often nicer to keep context or just close it
+    // setSelectedRecipe(null); 
+  };
+
   const handleAddIngredient = () => {
-    setNewRecipe(prev => ({...prev, ingredients: [...(prev.ingredients || []), '']}));
+    setRecipeForm(prev => ({...prev, ingredients: [...(prev.ingredients || []), '']}));
   };
 
   const handleAddInstruction = () => {
-    setNewRecipe(prev => ({...prev, instructions: [...(prev.instructions || []), '']}));
+    setRecipeForm(prev => ({...prev, instructions: [...(prev.instructions || []), '']}));
   };
 
   const handleSaveRecipe = async () => {
-    if (!newRecipe.title || !newRecipe.ingredients?.length) return;
+    if (!recipeForm.title || !recipeForm.ingredients?.length) return;
     
     // Clean empty entries
-    const cleanIngredients = newRecipe.ingredients.filter(i => i.trim() !== '');
-    const cleanInstructions = newRecipe.instructions?.filter(i => i.trim() !== '');
+    const cleanIngredients = recipeForm.ingredients.filter(i => i.trim() !== '');
+    const cleanInstructions = recipeForm.instructions?.filter(i => i.trim() !== '');
 
     const recipeToSave = {
-      ...newRecipe,
+      ...recipeForm,
       ingredients: cleanIngredients,
       instructions: cleanInstructions
     } as Recipe;
 
-    await recipeService.addRecipe(recipeToSave);
-    
-    // Refresh local list (optimistic update would be better in prod)
-    const updated = await recipeService.getAllRecipes();
-    setRecipes(updated);
-    setIsAddModalOpen(false);
-    setNewRecipe({ title: '', category: Category.MAIN_DISHES, ingredients: [''], instructions: [''], addedBy: 'Nan' });
+    if (recipeForm.id) {
+      // Update existing
+      await recipeService.updateRecipe(recipeToSave);
+      // Update local state
+      setRecipes(prev => prev.map(r => r.id === recipeForm.id ? { ...r, ...recipeToSave, userColor: getAvatarColor(recipeToSave.addedBy) } : r));
+      // Update selected recipe if it's the one being edited
+      if (selectedRecipe?.id === recipeForm.id) {
+        setSelectedRecipe({ ...selectedRecipe, ...recipeToSave, userColor: getAvatarColor(recipeToSave.addedBy) });
+      }
+    } else {
+      // Create new
+      const saved = await recipeService.addRecipe(recipeToSave);
+      setRecipes(prev => [...prev, saved]);
+    }
+
+    setIsModalOpen(false);
   };
 
   // Render logic
@@ -124,6 +151,7 @@ const App: React.FC = () => {
   }
 
   const categories = Object.values(Category);
+  const familyNames = Object.keys(FAMILY_MEMBERS);
 
   return (
     <div className="flex h-screen bg-stone-50 overflow-hidden font-sans">
@@ -177,7 +205,7 @@ const App: React.FC = () => {
 
         <div className="p-4 border-t border-stone-800">
            <button 
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={openAddModal}
             className="w-full flex items-center justify-center gap-2 bg-amber-600 text-white py-3 rounded shadow-lg hover:bg-amber-500 transition-colors"
            >
              <Plus size={18} /> Add Recipe
@@ -258,16 +286,22 @@ const App: React.FC = () => {
 
       {/* Details Modal */}
       {selectedRecipe && (
-        <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />
+        <RecipeDetail 
+            recipe={selectedRecipe} 
+            onClose={() => setSelectedRecipe(null)}
+            onEdit={openEditModal}
+        />
       )}
 
-      {/* Add Recipe Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/70 backdrop-blur-sm">
+      {/* Add/Edit Recipe Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/70 backdrop-blur-sm">
             <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
                 <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-stone-50">
-                    <h2 className="font-serif text-2xl text-stone-800">Add New Recipe</h2>
-                    <button onClick={() => setIsAddModalOpen(false)}><X className="text-stone-400 hover:text-stone-600" /></button>
+                    <h2 className="font-serif text-2xl text-stone-800">
+                        {recipeForm.id ? "Edit Recipe" : "Add New Recipe"}
+                    </h2>
+                    <button onClick={() => setIsModalOpen(false)}><X className="text-stone-400 hover:text-stone-600" /></button>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -276,8 +310,8 @@ const App: React.FC = () => {
                             <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Recipe Title</label>
                             <input 
                                 className="w-full border border-stone-200 rounded p-2 focus:ring-2 focus:ring-amber-500 outline-none"
-                                value={newRecipe.title}
-                                onChange={e => setNewRecipe({...newRecipe, title: e.target.value})}
+                                value={recipeForm.title}
+                                onChange={e => setRecipeForm({...recipeForm, title: e.target.value})}
                                 placeholder="e.g. Aunt May's Cornbread"
                             />
                         </div>
@@ -285,22 +319,68 @@ const App: React.FC = () => {
                              <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Category</label>
                              <select 
                                 className="w-full border border-stone-200 rounded p-2 bg-white"
-                                value={newRecipe.category}
-                                onChange={e => setNewRecipe({...newRecipe, category: e.target.value as Category})}
+                                value={recipeForm.category}
+                                onChange={e => setRecipeForm({...recipeForm, category: e.target.value as Category})}
                              >
                                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
                              </select>
                         </div>
                          <div>
-                             <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Added By</label>
+                             <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Owner / Added By</label>
                              <select 
                                 className="w-full border border-stone-200 rounded p-2 bg-white"
-                                value={newRecipe.addedBy}
-                                onChange={e => setNewRecipe({...newRecipe, addedBy: e.target.value})}
+                                value={recipeForm.addedBy}
+                                onChange={e => setRecipeForm({...recipeForm, addedBy: e.target.value})}
                              >
-                                {Object.keys(FAMILY_MEMBERS).map(m => <option key={m} value={m}>{m}</option>)}
+                                {familyNames.map(m => <option key={m} value={m}>{m}</option>)}
                                 <option value="Guest">Guest</option>
                              </select>
+                        </div>
+                         <div className="col-span-2">
+                            <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Description</label>
+                            <textarea 
+                                className="w-full border border-stone-200 rounded p-2 focus:ring-2 focus:ring-amber-500 outline-none"
+                                rows={2}
+                                value={recipeForm.description || ''}
+                                onChange={e => setRecipeForm({...recipeForm, description: e.target.value})}
+                                placeholder="A short story about this dish..."
+                            />
+                        </div>
+                         <div>
+                            <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Prep Time</label>
+                            <input 
+                                className="w-full border border-stone-200 rounded p-2 focus:ring-2 focus:ring-amber-500 outline-none"
+                                value={recipeForm.prepTime || ''}
+                                onChange={e => setRecipeForm({...recipeForm, prepTime: e.target.value})}
+                                placeholder="e.g. 15m"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Cook Time</label>
+                            <input 
+                                className="w-full border border-stone-200 rounded p-2 focus:ring-2 focus:ring-amber-500 outline-none"
+                                value={recipeForm.cookTime || ''}
+                                onChange={e => setRecipeForm({...recipeForm, cookTime: e.target.value})}
+                                placeholder="e.g. 1h"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Temperature</label>
+                            <input 
+                                className="w-full border border-stone-200 rounded p-2 focus:ring-2 focus:ring-amber-500 outline-none"
+                                value={recipeForm.temp || ''}
+                                onChange={e => setRecipeForm({...recipeForm, temp: e.target.value})}
+                                placeholder="e.g. 350°F"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Yields</label>
+                            <input 
+                                className="w-full border border-stone-200 rounded p-2 focus:ring-2 focus:ring-amber-500 outline-none"
+                                value={recipeForm.yields || ''}
+                                onChange={e => setRecipeForm({...recipeForm, yields: e.target.value})}
+                                placeholder="e.g. 4 servings"
+                            />
                         </div>
                     </div>
 
@@ -310,15 +390,15 @@ const App: React.FC = () => {
                              <button onClick={handleAddIngredient} className="text-amber-600 text-xs font-bold hover:underline">+ Add Item</button>
                         </div>
                         <div className="space-y-2">
-                            {newRecipe.ingredients?.map((ing, idx) => (
+                            {recipeForm.ingredients?.map((ing, idx) => (
                                 <input 
                                     key={idx}
                                     className="w-full border border-stone-200 rounded p-2 text-sm"
                                     value={ing}
                                     onChange={e => {
-                                        const list = [...(newRecipe.ingredients || [])];
+                                        const list = [...(recipeForm.ingredients || [])];
                                         list[idx] = e.target.value;
-                                        setNewRecipe({...newRecipe, ingredients: list});
+                                        setRecipeForm({...recipeForm, ingredients: list});
                                     }}
                                     placeholder={`Ingredient ${idx + 1}`}
                                 />
@@ -332,16 +412,16 @@ const App: React.FC = () => {
                              <button onClick={handleAddInstruction} className="text-amber-600 text-xs font-bold hover:underline">+ Add Step</button>
                         </div>
                         <div className="space-y-2">
-                            {newRecipe.instructions?.map((inst, idx) => (
+                            {recipeForm.instructions?.map((inst, idx) => (
                                 <textarea 
                                     key={idx}
                                     rows={2}
                                     className="w-full border border-stone-200 rounded p-2 text-sm"
                                     value={inst}
                                     onChange={e => {
-                                        const list = [...(newRecipe.instructions || [])];
+                                        const list = [...(recipeForm.instructions || [])];
                                         list[idx] = e.target.value;
-                                        setNewRecipe({...newRecipe, instructions: list});
+                                        setRecipeForm({...recipeForm, instructions: list});
                                     }}
                                     placeholder={`Step ${idx + 1}`}
                                 />
@@ -351,12 +431,12 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="p-6 border-t border-stone-100 bg-stone-50 flex justify-end gap-3">
-                    <button onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-stone-500 hover:text-stone-800">Cancel</button>
+                    <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-stone-500 hover:text-stone-800">Cancel</button>
                     <button 
                         onClick={handleSaveRecipe}
                         className="px-6 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 shadow-sm"
                     >
-                        Save to Cookbook
+                        Save Recipe
                     </button>
                 </div>
             </div>

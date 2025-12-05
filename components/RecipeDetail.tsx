@@ -1,14 +1,15 @@
 import React, { useRef } from 'react';
-import { X, Printer, Clock, Thermometer, Users, ChevronRight } from 'lucide-react';
+import { X, Printer, Clock, Thermometer, Users, ChevronRight, Edit2 } from 'lucide-react';
 import { Recipe } from '../types';
 import { getAvatarColor } from '../constants';
 
 interface RecipeDetailProps {
   recipe: Recipe;
   onClose: () => void;
+  onEdit: (recipe: Recipe) => void;
 }
 
-const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipe, onClose }) => {
+const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipe, onClose, onEdit }) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
@@ -29,6 +30,9 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipe, onClose }) => {
                 <X size={24} />
             </button>
             <div className="flex gap-2">
+                <button onClick={() => onEdit(recipe)} className="flex items-center gap-2 px-4 py-2 bg-stone-100 text-stone-700 rounded-md text-sm hover:bg-stone-200 transition-colors">
+                    <Edit2 size={16} /> Edit
+                </button>
                 <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-stone-800 text-white rounded-md text-sm hover:bg-stone-700 transition-colors">
                     <Printer size={16} /> Print Recipe
                 </button>
